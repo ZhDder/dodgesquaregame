@@ -3,8 +3,23 @@ import random
 import sys
 import numpy as np
 from agent import Agent
-from debug import ScrollingText
+from debug import ScrollingText, draw_debug_stats
 import matplotlib.pyplot as plt
+
+'''
+Update 8/10/2025
+- Lowered HP to 1 to create a dodge-or-die scenario.
+- Added an additional reward based on how close the agent is from the center, encouraging it to stay around there instead of sticking to borders.
+- Incremented the penalty in case the agent touches a border.
+- Replaced the reward based on the average distance of enemies for a reward based on the distance of the closes enemy on screen.
+- Replaced the min-max normalization with normalization using the screen size.
+- Restructured the training loop to render every 50 episodes, instead of every single one.
+- Included a new function which shows some debugging stats on screen while training.
+- Added a main menu where the user can choose between Play, Train or Exit.
+- Included a playable loop which handles the case where a human is playing
+- Eliminated the original game loop.
+- Extracted the eps decay logic and moved it to the end of the agent training loop so it decays after every episode.
+'''
 
 pygame.init()
 SCREEN_WIDTH = 1280
@@ -41,7 +56,7 @@ class Player:
         self.x = self.rect.x
         self.y = self.rect.y
 
-        self.hp = 3
+        self.hp = 1 #Lowering the hp to 1 might help the agent to learn to dodge more effectively, as it will be a dodge or die situation
 
     def set_dest(self, pos):
         x = max(self.width//2 , min(pos[0], SCREEN_WIDTH - self.width//2))
@@ -125,7 +140,61 @@ class Enemy:
         return not self.rect.colliderect(screen_rect)
 
 
-def game_loop():
+#########################################################################################################
+##########################          Main Menu and Playable Loop          ################################
+#########################################################################################################
+def main_menu():
+    play_button = pygame.rect.Rect(950, 420, 250, 75)
+    train_button = pygame.rect.Rect(950, 520, 250, 75)
+    exit_button = pygame.rect.Rect(950, 620, 250, 75)
+
+    start_text1 = title_font1.render(f"DODGEBALL", True, (145,200,255))
+    start_text2 = title_font.render(f"ULTRA", True, (145,200,255))
+    play_text = medium_font.render(f"Play", True, (0,0,0))
+    exit_text = medium_font.render(f"Exit", True, (0,0,0))
+    train_text = medium_font.render(f"Train Agent", True, (0,0,0))
+
+    while True:
+        draw_bg()
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                if (event.pos[0] > play_button.x and event.pos[1] > play_button.y) and (event.pos[0] < play_button.x + play_button.width and event.pos[1] < play_button.y + play_button.height):
+                    playable_loop()
+
+                elif (event.pos[0] > train_button.x and event.pos[1] > train_button.y) and (event.pos[0] < train_button.x + train_button.width and event.pos[1] < train_button.y + train_button.height):
+                    # Call the training loop and get the results
+                    losses, rewards = agent_training_loop()
+                    fig, ax = plt.subplots(1, 2, figsize=(16, 9))
+                    ax[0].plot(losses)
+                    ax[0].set_title('Losses')
+                    ax[1].plot(rewards)
+                    ax[1].set_title('Rewards')
+                    plt.show()
+
+                elif (event.pos[0] > exit_button.x and event.pos[1] > exit_button.y) and (event.pos[0] < exit_button.x + exit_button.width and event.pos[1] < exit_button.y + exit_button.height):
+                    pygame.quit()
+                    sys.exit()
+                    
+
+        pygame.draw.rect(screen, (240,230,220), play_button)
+        pygame.draw.rect(screen, (240,230,220), train_button)
+        pygame.draw.rect(screen, (240,230,220), exit_button)
+
+        screen.blit(start_text1, screen_rect.topleft)
+        screen.blit(start_text2, (screen_rect.topleft[0], screen_rect.topleft[1]+200))
+
+        screen.blit(play_text, (play_button.centerx - play_text.get_width() // 2, play_button.centery - play_text.get_height() // 2))
+        screen.blit(train_text, (train_button.centerx - train_text.get_width() // 2, train_button.centery - train_text.get_height() // 2))
+        screen.blit(exit_text, (exit_button.centerx - exit_text.get_width() // 2, exit_button.centery - exit_text.get_height() // 2))
+
+        pygame.display.flip()
+        clock.tick(FPS)
+
+
+def playable_loop():
     player = Player()
     enemies = []
     score = 0
@@ -133,49 +202,15 @@ def game_loop():
     running = True
     n_enemies = 1
     frames_passed = 0
-
     while running:
-        draw_bg()
 
-        if starting:
-
-            start_text1 = title_font1.render(f"DODGEBALL", True, (145,200,255))
-            start_text2 = title_font.render(f"ULTRA", True, (145,200,255))
-            start_text3 = medium_font.render(f"Start", True, (0,0,0))
-            start_text4 = medium_font.render(f"Exit", True, (0,0,0))
-            start_button = pygame.rect.Rect(1000, 500, 200, 75)
-            exit_button = pygame.rect.Rect(1000, 600, 200, 75)
-
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    running = False
-
-                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                    if (event.pos[0] > start_button.x and event.pos[1] > start_button.y) and (event.pos[0] < start_button.x + start_button.width and event.pos[1] < start_button.y + start_button.height):
-                        starting = False
-                    
-                    elif (event.pos[0] > exit_button.x and event.pos[1] > exit_button.y) and (event.pos[0] < exit_button.x + exit_button.width and event.pos[1] < exit_button.y + exit_button.height):
-                        pygame.quit()
-                        sys.exit()
-                
-
-            pygame.draw.rect(screen, (240,230,220), start_button)
-            pygame.draw.rect(screen, (240,230,220), exit_button)
-
-            screen.blit(start_text1, screen_rect.topleft)
-            screen.blit(start_text2, (screen_rect.topleft[0], screen_rect.topleft[1]+200))
-            screen.blit(start_text3, (1065, 525))
-            screen.blit(start_text4, (1072, 625))
-
-        elif player.hp > 0:
+        if player.hp > 0:
             draw_bg()
             player.draw()
 
             for event in pygame.event.get():
-
                 if event.type == pygame.QUIT:
                     running = False
-
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     player.set_dest(pygame.mouse.get_pos())
             
@@ -205,35 +240,29 @@ def game_loop():
             score_text = score_font.render(f"SCORE:{score}", True, (255,255,255))
             screen.blit(score_text, (1150, 25))
 
-
             player.move()
         
-        elif player.hp == 0:
+        else: #Game over
             draw_bg()
-
             exit_button = pygame.rect.Rect(1000, 600, 200, 75)
             restart_button = pygame.rect.Rect(1000, 500, 200, 75)
 
             for event in pygame.event.get():
-
                 if event.type == pygame.QUIT:
                     running = False
-                
                 if event.type == pygame.MOUSEBUTTONDOWN:
                     if (event.pos[0] > exit_button.x and event.pos[1] > exit_button.y) and (event.pos[0] < exit_button.x + exit_button.width and event.pos[1] < exit_button.y + exit_button.height):
-                        pygame.quit()
-                        sys.exit()
+                        running = False
                     if (event.pos[0] > restart_button.x and event.pos[1] > restart_button.y) and (event.pos[0] < restart_button.x + restart_button.width and event.pos[1] < restart_button.y + restart_button.height):
-                        player.hp = 3
+                        player.hp = 1
                         enemies = []
                         score = 0
                         player.pos = pygame.Vector2(640, 360)
 
-
             end_text1 = title_font.render(f"GAME", True, (255,100,70))
             end_text2 = title_font.render(f"OVER...", True, (255,100,70))
             end_text3 = medium_font.render(f"Your final score: {score}", True, (255,0,0))
-            end_text4 = medium_font.render(f"Exit", True, (0,0,0))
+            end_text4 = medium_font.render(f"Menu", True, (0,0,0))
             restart_text = medium_font.render(f"Restart", True, (0,0,0))
 
             pygame.draw.rect(screen, (240,230,220), exit_button)
@@ -243,17 +272,14 @@ def game_loop():
             screen.blit(end_text3, (screen_rect.topleft[0]+100, screen_rect.topleft[1] + 600))
             screen.blit(end_text4, (1072, 625))
             screen.blit(restart_text, (1056, 525))
-
+            
         pygame.display.flip()
         clock.tick(FPS)
-    pygame.quit()
 
 
 #########################################################################################################
 ##########################          Agent training          #############################################
 #########################################################################################################
-
-
 def step(player, action, enemies): #Number of possible actions: up, down, left, right, top_left, top_right, down_right, down_left = 8
     done = False
     reward = 0
@@ -277,21 +303,35 @@ def step(player, action, enemies): #Number of possible actions: up, down, left, 
 
     player.move()
 
-    if player.check_edge():
-        reward -= 10
+    # To avoid the border-hugging situation, we will reward the agent if it stays close to the center of the screen
+    # Calculate distance from center
+    center_x, center_y = SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2
+    dist_from_center = np.sqrt((player.pos[0] - center_x)**2 + (player.pos[1] - center_y)**2)
 
-    state = []
-    state.append(player.pos[0])
-    state.append(player.pos[1])
+    # Max possible distance is from corner to center
+    max_dist = np.sqrt(center_x**2 + center_y**2)
+
+    # Reward for being closer to the center (normalized from 0 to 1 to make it small and smooth)
+    # The closer to the center, the higher the reward
+    centering_reward = 1.0 - (dist_from_center / max_dist)
+    reward += centering_reward
+
+    # Big penalty if the agent touches a border
+    if player.check_edge():
+        reward -= 50 
+
+    state = [] #Normalizing using the screen size
+    state.append(player.pos[0] / SCREEN_WIDTH)
+    state.append(player.pos[1] / SCREEN_HEIGHT)
     
-    sum_distance_from_player = 0
+    distances_to_player = []
     enemies_to_remove = []
     for enemy in enemies:
         pygame.draw.rect(screen, (156,156,156), enemy.rect)
         if player.collision(enemy.rect):
             enemies.remove(enemy)
             player.hp = player.hp - 1
-            reward -= 50
+            reward -= 100
 
             if player.hp == 0:
                 done = True
@@ -301,29 +341,23 @@ def step(player, action, enemies): #Number of possible actions: up, down, left, 
             if enemy.out_of_screen():
                 enemies_to_remove.append(enemy)
         
-        sum_distance_from_player += np.sqrt((player.pos[0] - enemy.pos[0]) ** 2 + (player.pos[1] - enemy.pos[1]) ** 2)
+        distances_to_player.append(np.sqrt((player.pos[0] - enemy.pos[0]) ** 2 + (player.pos[1] - enemy.pos[1]) ** 2))
 
-        state.append(enemy.pos[0])
-        state.append(enemy.pos[1])
-    
-    reward += 1
-    
+        state.append(enemy.pos[0] / SCREEN_WIDTH)
+        state.append(enemy.pos[1] / SCREEN_HEIGHT)
+        
     for enemy in enemies_to_remove:
         enemies.remove(enemy)
 
     while len(state) < 42:
         state.append(-1.0)
 
-    if enemies:
-        avg_distance_from_player = sum_distance_from_player / len(enemies)
+    if enemies: #The closer the enemy gets, lesser the reward received
+        closest_enemy_dist = min(distances_to_player)
+        reward += 0.01 * closest_enemy_dist
+        
 
-        if avg_distance_from_player > 100:
-            reward += 2
-
-        elif avg_distance_from_player < 50:
-            reward -= 2
-
-    return normalize_array(np.array(state, dtype=np.float64)), reward, done
+    return np.array(state, dtype=np.float64), reward, done
 
 def env_reset():
     player = Player()
@@ -333,16 +367,14 @@ def env_reset():
     reward = 0
     done = False
 
-    state = [player.pos[0], player.pos[1]]
+    state = [player.pos[0] / SCREEN_WIDTH, player.pos[1] / SCREEN_HEIGHT]
 
     while len(state) < (n_enemies * 2 + 2):
         state.append(-1.0)
 
 
-    return player, enemies, n_enemies, frames_passed, normalize_array(np.array(state, dtype=np.float64)), reward, done
+    return player, enemies, n_enemies, frames_passed, np.array(state, dtype=np.float64), reward, done
 
-def normalize_array(array):
-    return (array - array.min()) / (array.max() - array.min())
 
 
 action_map = {
@@ -368,11 +400,11 @@ def agent_training_loop(n_episodes = 1000):
     eps_rewards = []
 
     for eps in range(n_episodes):
+        render_current_episode = (eps % 1 == 0) #Render every 50 episodes 
+
         player, enemies, n_enemies, frames_passed, current_state, reward, done = env_reset()
         eps_loss = []
         eps_reward = 0
-        eps_text = score_font.render(f"EPISODE:{eps}", True, (255,255,255))
-        screen.blit(eps_text, (1150, 50))
 
         while not done:
 
@@ -381,9 +413,6 @@ def agent_training_loop(n_episodes = 1000):
                     done = True
                     pygame.quit()
                     sys.exit()
-
-            draw_bg()
-            player.draw()
 
             if len(enemies) < n_enemies and frames_passed > 60:
                 enemy = Enemy()
@@ -394,21 +423,38 @@ def agent_training_loop(n_episodes = 1000):
 
             action = agent.select_action(current_state)
             next_state, reward, done = step(player, action, enemies)
-
-            screen.blit(eps_text, (1150, 50))
-            show_action(action)
-
             agent.remember(current_state, action, reward, next_state, done)
-            current_state = next_state
-            eps_reward += reward
             loss = agent.replay()
 
+            current_state = next_state
+            eps_reward += reward
             if loss is not None:
                 eps_loss.append(loss)
+            
+            if render_current_episode:
+                draw_bg()
+                player.draw()
+                for enemy in enemies:
+                    pygame.draw.rect(screen, (156, 156, 156), enemy.rect)
+                
+                avg_loss = np.mean(eps_losses) if eps_losses else 0.0
+                stats = {
+                    "Episode": f"{eps}/{n_episodes}",
+                    "Reward": f"{eps_reward:.2f}",
+                    "Avg Loss": f"{avg_loss:.4f}",
+                    "Epsilon": f"{agent.eps:.2f}"
+                }
 
-            pygame.display.flip()
-            clock.tick(FPS)
+                eps_text = score_font.render(f"EPISODE:{eps}", True, (255,255,255))
+                screen.blit(eps_text, (1150, 50))
+                draw_debug_stats(screen, score_font, stats, SCREEN_WIDTH, SCREEN_HEIGHT)
+                show_action(action)
+
+                pygame.display.flip()
+                clock.tick(FPS)
         
+        agent.decay_epsilon() #Decay eps after every episode
+
         if eps_loss:
             eps_losses.append(np.mean(eps_loss))
         eps_rewards.append(eps_reward)
@@ -416,11 +462,6 @@ def agent_training_loop(n_episodes = 1000):
 
     return eps_losses, eps_rewards
             
-losses, rewards = agent_training_loop()
-fig, ax = plt.subplots(1, 2)
 
-ax[0].plot(losses)
-ax[0].set_title('Losses')
-ax[1].plot(rewards)
-ax[1].set_title('Rewards')
-plt.show()
+if __name__ == '__main__':
+    main_menu()

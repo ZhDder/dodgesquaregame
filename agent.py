@@ -1,10 +1,18 @@
 import torch
 import numpy as np
 import random
+import collections
+
+'''
+Update 8/10/2025
+- Changed the memory data structure from list to deque for a more efficient usage
+- Changed the eps decay behaviour: Instead of lowering per frame, which is too much, it is now lowered per episode.
+- Lowered eps_decay rate to 0.995 for a quicker decay as now it updates less often.
+'''
 
 class Agent(torch.nn.Module):
 
-    def __init__(self, n_actions = 8, eps = 1.0, min_eps = 0.05, eps_decay = 0.999, memory_size = 1000):
+    def __init__(self, n_actions = 8, eps = 1.0, min_eps = 0.05, eps_decay = 0.995, memory_size = 1000):
         super(Agent, self).__init__()
 
         self.n_actions = n_actions #Number of possible actions: up, down, left, right, top_left, top_right, down_right, down_left = 8
@@ -18,7 +26,7 @@ class Agent(torch.nn.Module):
         self.eps_decay = eps_decay
 
         #Store past experiences, check the 'remember' function.
-        self.memory = []
+        self.memory = collections.deque(maxlen=self.memory_size)
 
         #For Bellman's equation
         self.gamma = 0.95
@@ -65,19 +73,18 @@ class Agent(torch.nn.Module):
                 action = torch.argmax(q_vals).item()
 
         #eps decay
-        if self.eps > self.min_eps:
-            self.eps *= self.eps_decay
         
         return action
+    
+    def decay_epsilon(self):
+        if self.eps > self.min_eps:
+            self.eps *= self.eps_decay
     
     #Now, before the training loop, there's an important idea to mention. For each iteration, if we only consider the last action taken, its reward and other values, which all
     # together forms an 'experience', the training will likely not be as stable as if we consider some prior experiences too.
     # For this last idea, we need a way to store the experiences and include them (maybe not all) in the training loop. 
 
     def remember(self, state, action, reward, next_state, done):
-        if len(self.memory) > self.memory_size:
-            self.memory.pop(0)
-
         self.memory.append((state, action, reward, next_state, done))
 
     def replay(self): #Usage of memories to train. 
