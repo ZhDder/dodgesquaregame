@@ -13,7 +13,7 @@ Update 8/10/2025
 - Incremented the penalty in case the agent touches a border.
 - Replaced the reward based on the average distance of enemies for a reward based on the distance of the closes enemy on screen.
 - Replaced the min-max normalization with normalization using the screen size.
-- Restructured the training loop to render every 50 episodes, instead of every single one.
+- Restructured the training loop to render every 5 episodes, instead of every single one.
 - Included a new function which shows some debugging stats on screen while training.
 - Added a main menu where the user can choose between Play, Train or Exit.
 - Included a playable loop which handles the case where a human is playing
@@ -394,13 +394,13 @@ def show_action(action_code):
     action_text_object.render()
 
 
-def agent_training_loop(n_episodes = 1000):
+def agent_training_loop(n_episodes = 1000, render_episode = 5):
     agent = Agent()
     eps_losses = []
     eps_rewards = []
 
     for eps in range(n_episodes):
-        render_current_episode = (eps % 1 == 0) #Render every 50 episodes 
+        render_current_episode = (eps % render_episode == 0)
 
         player, enemies, n_enemies, frames_passed, current_state, reward, done = env_reset()
         eps_loss = []
