@@ -11,7 +11,9 @@ Update 8/10/2025
 '''
 
 class Agent(torch.nn.Module):
-
+    '''
+    Agent based on Deep Q learning.
+    '''
     def __init__(self, n_actions = 8, eps = 1.0, min_eps = 0.05, eps_decay = 0.995, memory_size = 1000):
         super(Agent, self).__init__()
 

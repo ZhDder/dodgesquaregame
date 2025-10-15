@@ -28,7 +28,7 @@ screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 clock = pygame.time.Clock()
 FPS = 120
 BG = (90,90,90)
-pygame.display.set_caption("DodgeballUltra")
+pygame.display.set_caption("DodgeSquareUltra")
 screen_rect = pygame.rect.Rect(0,0,SCREEN_WIDTH,SCREEN_HEIGHT)
 top_edge_rect = pygame.rect.Rect(0,0,SCREEN_WIDTH,1)
 down_edge_rect = pygame.rect.Rect(0,SCREEN_HEIGHT,SCREEN_WIDTH,1)
@@ -37,15 +37,21 @@ right_edge_rect = pygame.rect.Rect(SCREEN_WIDTH,0,1,SCREEN_HEIGHT)
 
 score_font = pygame.font.Font(None, 25)
 title_font = pygame.font.Font(None, 400)
-title_font1 = pygame.font.Font(None, 295)
+title_font1 = pygame.font.Font(None, 230)
 medium_font = pygame.font.Font(None, 40)
 
 action_text_object = ScrollingText(medium_font, screen)
 
 def draw_bg():
+    '''
+    Fills the background with color BG.
+    '''
     screen.fill(BG)
 
 class Player:
+    '''
+    Player Class, which is also used for the RL agent.
+    '''
     def __init__(self):
         self.rect = pygame.rect.Rect(640,360,60,60)  
         self.pos = pygame.Vector2(640, 360)
@@ -59,15 +65,23 @@ class Player:
         self.hp = 1 #Lowering the hp to 1 might help the agent to learn to dodge more effectively, as it will be a dodge or die situation
 
     def set_dest(self, pos):
+        '''
+        Sets the destination to pos.
+        '''
         x = max(self.width//2 , min(pos[0], SCREEN_WIDTH - self.width//2))
         y = max(self.height//2, min(pos[1], SCREEN_HEIGHT - self.height//2))
         self.dest = pygame.Vector2((x,y))
 
     def check_edge(self):
+        '''
+        Checks whether the player square is touching a border.
+        '''
         return self.collision(top_edge_rect) or self.collision(down_edge_rect) or self.collision(left_edge_rect) or self.collision(right_edge_rect)
     
     def move(self):
-
+        '''
+        Move the player square to the destination stored in self.dest
+        '''
         vect = self.dest - self.pos
         move_length = vect.length()
 
@@ -82,35 +96,26 @@ class Player:
 
 
     def collision(self, rect):
+        '''
+        Collision detection.
+        '''
         return self.rect.colliderect(rect)
-        """
-        x = rect.x
-        y = rect.y
-        height = rect.height
-        width = rect.width
-
-        if x + width > self.x and y + height > self.y and y < self.y + self.height:
-            return True
-        
-        elif x < self.x + self.width and y + height > self.y and self.y + self.height > y:
-            return True
-        
-        elif y + height > self.y and x + width > x and x < self.x + self.width:
-            return True
-        
-        elif y < self.y + self.height and x + width > self.x and x > self.x + self.width:
-            return True
-
-        return False"""
 
 
     def draw(self):
+        '''
+        Draws the player square on the screen at the position self.pos
+        '''
         pygame.draw.rect(screen, (0,0,0), self.rect)
 
         for i in range(1, self.hp+1):
             pygame.draw.rect(screen, (0,255,0), pygame.rect.Rect(25*i,25, 10, 5))
 
 class Enemy:
+    '''
+    Enemy class
+    '''
+
     def __init__(self):
         self.code = random.randint(0,1)
         self.spd = 10
@@ -127,16 +132,25 @@ class Enemy:
         self.target = self.pos
 
     def set_target(self, pos):
+        '''
+        Sets the position pos as the target, which determines the vector along which the enemy will travel.
+        '''
         self.target = pygame.Vector2(pos)
         self.dir_vect = self.target - self.pos
         self.dir_vect.normalize_ip()
 
 
     def move(self):
+        '''
+        Moves the enemy along the direction established by using self.set_target
+        '''
         self.pos = self.pos + self.dir_vect * self.spd
         self.rect.center = list(int(a) for a in self.pos)
     
     def out_of_screen(self):
+        '''
+        Checks whether the enemy square is outside the screen.
+        '''
         return not self.rect.colliderect(screen_rect)
 
 
@@ -144,11 +158,15 @@ class Enemy:
 ##########################          Main Menu and Playable Loop          ################################
 #########################################################################################################
 def main_menu():
+    '''
+    The main menu shared by both the playable game and the agent training loop.
+    '''
+
     play_button = pygame.rect.Rect(950, 420, 250, 75)
     train_button = pygame.rect.Rect(950, 520, 250, 75)
     exit_button = pygame.rect.Rect(950, 620, 250, 75)
 
-    start_text1 = title_font1.render(f"DODGEBALL", True, (145,200,255))
+    start_text1 = title_font1.render(f"DODGESQUARE", True, (145,200,255))
     start_text2 = title_font.render(f"ULTRA", True, (145,200,255))
     play_text = medium_font.render(f"Play", True, (0,0,0))
     exit_text = medium_font.render(f"Exit", True, (0,0,0))
@@ -195,10 +213,12 @@ def main_menu():
 
 
 def playable_loop():
+    '''
+    The playable game itself
+    '''
     player = Player()
     enemies = []
     score = 0
-    starting = True
     running = True
     n_enemies = 1
     frames_passed = 0
@@ -281,6 +301,9 @@ def playable_loop():
 ##########################          Agent training          #############################################
 #########################################################################################################
 def step(player, action, enemies): #Number of possible actions: up, down, left, right, top_left, top_right, down_right, down_left = 8
+    '''
+    Determines the next action taken, current reward and whether the player has been hit.
+    '''
     done = False
     reward = 0
 
@@ -360,6 +383,9 @@ def step(player, action, enemies): #Number of possible actions: up, down, left, 
     return np.array(state, dtype=np.float64), reward, done
 
 def env_reset():
+    '''
+    Resets the environment which marks the end of an episode.
+    '''
     player = Player()
     enemies = []
     n_enemies = 20
@@ -376,7 +402,7 @@ def env_reset():
     return player, enemies, n_enemies, frames_passed, np.array(state, dtype=np.float64), reward, done
 
 
-
+#For simplicity, a discrete amount of actions can be taken.
 action_map = {
         0 : 'UP',
         1 : 'DOWN',
@@ -387,14 +413,20 @@ action_map = {
         6 : 'DOWN_RIGHT',
         7 : 'DOWN_LEFT'
     }
-def show_action(action_code):
 
+def show_action(action_code):
+    '''
+    Shows the actions taken by the agent on the right side of the game.
+    '''
     action_taken = action_map[action_code]
     action_text_object.add_text(action_taken)
     action_text_object.render()
 
 
 def agent_training_loop(n_episodes = 1000, render_episode = 5):
+    '''
+    Main training loop
+    '''
     agent = Agent()
     eps_losses = []
     eps_rewards = []

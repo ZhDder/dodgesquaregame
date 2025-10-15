@@ -14,6 +14,9 @@ MARGIN_TOP = 20
 
 
 class ScrollingText:
+    '''
+    Scrolling text class for debug purposes.
+    '''
     def __init__(self, font, screen):
         self.screen = screen
         self.font = font
@@ -24,15 +27,24 @@ class ScrollingText:
         self.margin_top = MARGIN_TOP
 
     def add_text(self, text):
+        '''
+        Add text to be shown on the scrolling text section.
+        '''
         self.text_lines.append(text)
 
     def render(self):
+        '''
+        Render and show.
+        '''
         for i, text in enumerate(self.text_lines):
             y_position = self.margin_top + (i * self.line_height)
             text_surface = self.font.render(text, True, TEXT_COLOR)
             self.screen.blit(text_surface, (self.margin_left, y_position))
 
 def draw_debug_stats(screen, font, stats, screen_width, screen_height):
+    '''
+    Shows some stats about the training loop on the right side of the screen.
+    '''
     start_y = screen_height - 120  # Starting y-position for the text
     for i, (key, value) in enumerate(stats.items()):
         text = f"{key}: {value}"
